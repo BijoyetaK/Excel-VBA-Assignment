@@ -1,0 +1,265 @@
+Option Explicit
+
+'Getting the Total Number of records in the sheet
+Dim rowcount As Long
+
+Sub GetRowCount()
+
+rowcount = Cells(Rows.Count, 1).End(xlUp).Row
+
+End Sub
+
+'This procedure will run for all the Ticker records in each worksheet and return the Opening Price,
+'Closing Price,Yearly Change, Percentage Change, Total Stock Volume per Ticker. The same worksheet will also display the Ticker having
+'Greatest % Yearly Increase/Decrease and the Greatest Volume
+
+Sub RunProcess()
+
+Call GetRowCount
+
+
+'Defining the coulumn position in their variables
+Dim TickerColumn As Integer
+Dim OpenPriceColumn As Integer
+Dim HighPriceColumn As Integer
+Dim LowPriceColumn As Integer
+Dim ClosedPriceColumn As Integer
+Dim VolumeColumn As Integer
+
+Dim CurrentTicker As String
+Dim OpenPrice As Double
+Dim HighPrice As Double
+Dim LowPrice As Double
+Dim ClosePrice As Double
+Dim StockVolume As Double
+Dim i As Integer
+
+'Setting Dictionaries to contain the Open and Close Price for each Ticker
+'Dictionary example: https://www.automateexcel.com/vba/dictionary/
+'Dictionary as a Vlookup. It is a key value pair, key in this case is the Ticker symbol and value is its Open Price, Close Price
+' And Total Volume.
+
+Dim StockClosingPrice As Scripting.Dictionary
+Set StockClosingPrice = New Scripting.Dictionary
+Dim StockOpeningPrice As Scripting.Dictionary
+Set StockOpeningPrice = New Scripting.Dictionary
+
+Dim TickerVolume As Scripting.Dictionary
+Set TickerVolume = New Scripting.Dictionary
+
+TickerColumn = 1
+OpenPriceColumn = 3
+HighPriceColumn = 4
+LowPriceColumn = 5
+ClosedPriceColumn = 6
+VolumeColumn = 7
+
+For i = 2 To rowcount
+
+CurrentTicker = Cells(i, TickerColumn)
+OpenPrice = Cells(i, OpenPriceColumn)
+HighPrice = Cells(i, HighPriceColumn)
+LowPrice = Cells(i, LowPriceColumn)
+ClosePrice = Cells(i, ClosedPriceColumn)
+StockVolume = Cells(i, VolumeColumn)
+
+Dim nextrow As Integer
+Dim previousrow As Integer
+
+nextrow = i + 1
+previousrow = i - 1
+
+'For first column after Header
+If i = 2 Then
+
+ StockOpeningPrice(CurrentTicker) = OpenPrice
+
+End If
+
+
+
+'For row prior to the current row
+
+If previousrow > 2 Then
+
+   Dim previousTicker As String
+   
+   previousTicker = Cells(previousrow, TickerColumn)
+  
+   
+   If CurrentTicker <> previousTicker Then
+     
+       StockOpeningPrice(CurrentTicker) = OpenPrice
+       
+   End If
+
+   
+End If
+
+If nextrow >= rowcount Then
+
+ StockClosingPrice(CurrentTicker) = ClosePrice
+
+End If
+
+If nextrow < (rowcount) Then
+
+Dim nextTicker As String
+Dim nextOpenPrice As Double
+Dim nextHighPrice As Double
+Dim nextLowPrice As Double
+Dim nextClosePrice As Double
+
+nextTicker = Cells(nextrow, TickerColumn)
+nextOpenPrice = Cells(nextrow, OpenPriceColumn)
+nextHighPrice = Cells(nextrow, HighPriceColumn)
+nextLowPrice = Cells(nextrow, LowPriceColumn)
+nextClosePrice = Cells(nextrow, ClosedPriceColumn)
+
+
+'Create dictionary with close price for each Ticker
+
+  If CurrentTicker <> nextTicker Then
+
+     StockClosingPrice(CurrentTicker) = ClosePrice
+
+  End If
+  
+  If CurrentTicker = nextTicker Then
+  
+     Dim tv As Double
+     tv = TickerVolume(CurrentTicker)
+     TickerVolume(CurrentTicker) = tv + StockVolume
+
+  End If
+
+End If
+
+Next i
+
+ Dim AllTickers() As Variant
+ AllTickers = TickerVolume.Keys() 'dict.Keys() will return the keys from the dictionary in an array, in this case it will be array of unique Tickers
+ Cells(1, 12) = "Ticker"
+ Cells(1, 13) = "OpenPrice"
+ Cells(1, 14) = "ClosePrice"
+ Cells(1, 15) = "YearlyChange"
+ Cells(1, 16) = "PercentageChange"
+ Cells(1, 17) = "Total Stock Volume"
+  
+ 'Loop over AllTickers to fetch their individual Open/Close Price and Total Volume from the dictionaries
+ For i = 0 To (UBound(AllTickers) - LBound(AllTickers)) 'UBound - Upper Bound of an array, LBound - Lower Bound
+     CurrentTicker = AllTickers(i)
+     'Look up and fetch the Open Price for current ticker from StockOpeningPrice dictionary
+     OpenPrice = StockOpeningPrice(CurrentTicker)
+     'Look up and fetch the Close Price for current ticker from StockClosingPrice dictionary
+     ClosePrice = StockClosingPrice(CurrentTicker)
+     'Look up and fetch the Open Price for current ticker from TickerVolume dictionary
+     StockVolume = TickerVolume(CurrentTicker)
+     'Populate cells in summary region starting from column 12
+     Cells(i + 2, 12) = CurrentTicker
+     Cells(i + 2, 13) = OpenPrice
+     Cells(i + 2, 14) = ClosePrice
+     Cells(i + 2, 15) = ClosePrice - OpenPrice
+     Cells(i + 2, 16) = ((ClosePrice - OpenPrice) * 100) / OpenPrice & " %"
+     Cells(i + 2, 17) = StockVolume
+     
+    
+    'Format cell color and assign an icon based on yearly change
+     Dim iset As IconSetCondition
+     
+     Set iset = Cells(i + 2, 15).FormatConditions.AddIconSetCondition
+     'Configure icon set
+     With iset
+        .IconSet = ActiveWorkbook.IconSets(xl3Arrows)
+        .ReverseOrder = False
+        .ShowIconOnly = False
+     End With
+     
+     If (ClosePrice - OpenPrice) < 0 Then
+     
+        Cells(i + 2, 15).Interior.ColorIndex = 3
+        
+     Else
+        Cells(i + 2, 15).Interior.ColorIndex = 4
+        
+     End If
+     
+    With iset.IconCriteria(3)
+        .Type = xlConditionValueNumber
+        .Operator = xlGreater
+        .Value = 0
+                 
+    End With
+   
+     
+ Next i
+ 
+'New loop to calculate the Greatest % Decrease/Increase and Greatest Stock Volume
+
+ Dim GreatestTickerByVolume As String
+ Dim GreatestVolume As Double
+ Dim GreatestTickerbyPosChange As String
+ Dim GreatestTickerbyNegChange As String
+ Dim GreatestPositiveChange As Double
+ Dim GreatestNegativeChange As Double
+ 
+ GreatestVolume = 0
+ GreatestPositiveChange = 0
+ GreatestNegativeChange = 0
+  
+    
+For i = 0 To (UBound(AllTickers) - LBound(AllTickers))
+ 
+     CurrentTicker = AllTickers(i)
+     OpenPrice = StockOpeningPrice(CurrentTicker)
+     ClosePrice = StockClosingPrice(CurrentTicker)
+     StockVolume = TickerVolume(CurrentTicker)
+     
+     If StockVolume > GreatestVolume Then
+        GreatestVolume = StockVolume
+        GreatestTickerByVolume = CurrentTicker
+     End If
+     
+     If (ClosePrice - OpenPrice) / OpenPrice > GreatestPositiveChange Then
+     
+         GreatestPositiveChange = (ClosePrice - OpenPrice) / OpenPrice
+         GreatestTickerbyPosChange = CurrentTicker
+         
+         
+     End If
+     
+     If (ClosePrice - OpenPrice) / OpenPrice < GreatestNegativeChange Then
+     
+         GreatestNegativeChange = (ClosePrice - OpenPrice) / OpenPrice
+         GreatestTickerbyNegChange = CurrentTicker
+         
+         
+     End If
+     
+     
+
+Next i
+
+'Populating Headers
+
+ Cells(1, 20) = "Ticker"
+ Cells(1, 21) = "Value"
+ Cells(2, 19) = "Greatest %Increase"
+ Cells(3, 19) = "Greatest %Decrease"
+ Cells(4, 19) = "Greatest Total Volume"
+ 
+ Cells(2, 20) = GreatestTickerbyPosChange
+ Cells(2, 21) = GreatestPositiveChange
+ Cells(2, 21).NumberFormat = "0.00%"
+ 
+ Cells(3, 20) = GreatestTickerbyNegChange
+ Cells(3, 21) = GreatestNegativeChange
+ Cells(3, 21).NumberFormat = "0.00%"
+  
+ Cells(4, 20) = GreatestTickerByVolume
+ Cells(4, 21) = GreatestVolume
+ 
+ 
+End Sub
+
+

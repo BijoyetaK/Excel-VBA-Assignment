@@ -1,0 +1,37 @@
+
+Sub RunAllSheets()
+
+'https://www.mrexcel.com/board/threads/is-there-a-way-to-apply-a-macro-across-all-worksheets.997398/
+
+Dim xsheet As Worksheet
+
+For Each xsheet In ThisWorkbook.Worksheets
+        xsheet.Select
+
+If xsheet.Name <> "Overview" Then
+
+Call RunProcess
+End If
+
+Next xsheet
+     
+End Sub
+
+'Reseting the cell formatting and clearing contents
+Sub ResetAllSheetData()
+
+Dim xsheet As Worksheet
+
+For Each xsheet In ThisWorkbook.Worksheets
+        xsheet.Select
+
+If xsheet.Name <> "Overview" Then
+   Dim rc As Long
+   rc = Cells(Rows.Count, 1).End(xlUp).Row
+   Cells.ClearFormats
+   Range("$L1:$U$" & rc).ClearContents
+    
+End If
+ 
+Next xsheet
+End Sub
